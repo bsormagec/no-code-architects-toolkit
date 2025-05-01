@@ -123,11 +123,32 @@ Each endpoint is supported by robust payload validation and detailed API documen
 
 ## Docker Build and Run
 
-### Build the Docker Image
+### Build the Docker Image Locally
 
    ```bash
    docker build -t no-code-architects-toolkit .
    ```
+
+### Automated Docker Builds with GitHub Actions
+
+This repository is configured with a GitHub Actions workflow that automatically builds and publishes Docker images to GitHub Container Registry when:
+- A new release is published
+- A new version tag (v*.*.* format) is pushed
+
+The Docker images are published to:
+- **GitHub Container Registry**: `ghcr.io/yourusername/no-code-architects-toolkit`
+
+No additional GitHub secrets are needed as the workflow uses the built-in `GITHUB_TOKEN` secret for authentication.
+
+#### Using the Pre-built Images
+
+You can pull the pre-built images directly from GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/yourusername/no-code-architects-toolkit:latest
+```
+
+Replace `yourusername` with your actual GitHub username.
 
 ### General Environment Variables
 

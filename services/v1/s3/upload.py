@@ -20,6 +20,7 @@ import os
 import boto3
 import logging
 import requests
+import mimetypes
 from urllib.parse import urlparse, unquote, quote
 import uuid
 import re
@@ -52,6 +53,35 @@ def get_filename_from_url(url):
     
     return filename
 
+def guess_content_type(url, filename):
+    """
+    Determine the content type for a file based on its extension or by making a HEAD request.
+    
+    Args:
+        url (str): URL of the file
+        filename (str): Filename (used to guess content type by extension)
+    
+    Returns:
+        str: The guessed content type or 'application/octet-stream' if it cannot be determined
+    """
+    # First try to determine from filename extension
+    content_type, _ = mimetypes.guess_type(filename)
+    
+    # If that fails, try to get from the URL via a HEAD request
+    if not content_type:
+        try:
+            response = requests.head(url, allow_redirects=True, timeout=10)
+            content_type = response.headers.get('content-type', '').split(';')[0]
+        except Exception as e:
+            logger.warning(f"Failed to determine content type from HEAD request: {e}")
+    
+    # If all methods fail, use the default
+    if not content_type:
+        logger.warning(f"Could not determine content type for {filename}, defaulting to application/octet-stream")
+        content_type = 'application/octet-stream'
+    
+    return content_type
+
 def stream_upload_to_s3(file_url, custom_filename=None, make_public=False):
     """
     Stream a file from a URL directly to S3 without saving to disk.
@@ -78,6 +108,10 @@ def stream_upload_to_s3(file_url, custom_filename=None, make_public=False):
         else:
             filename = get_filename_from_url(file_url)
         
+        # Determine content type based on the file extension or URL
+        content_type = guess_content_type(file_url, filename)
+        logger.info(f"Determined content type for {filename}: {content_type}")
+        
         # Start a multipart upload
         logger.info(f"Starting multipart upload for {filename} to bucket {bucket_name}")
         acl = 'public-read' if make_public else 'private'
@@ -85,7 +119,8 @@ def stream_upload_to_s3(file_url, custom_filename=None, make_public=False):
         multipart_upload = s3_client.create_multipart_upload(
             Bucket=bucket_name,
             Key=filename,
-            ACL=acl
+            ACL=acl,
+            ContentType=content_type
         )
         
         upload_id = multipart_upload['UploadId']

@@ -19,6 +19,7 @@
 import os
 import json
 import logging
+import mimetypes
 from google.oauth2 import service_account
 from google.cloud import storage
 
@@ -55,14 +56,42 @@ def initialize_gcp_client():
 # Initialize the GCS client
 gcs_client = initialize_gcp_client()
 
+def guess_content_type(file_path):
+    """
+    Determine the content type for a file based on its extension.
+    
+    Args:
+        file_path (str): Path to the file
+    
+    Returns:
+        str: The guessed content type or None if it cannot be determined
+    """
+    content_type, _ = mimetypes.guess_type(file_path)
+    
+    if not content_type:
+        logger.warning(f"Could not determine content type for {file_path}, this may default to application/octet-stream")
+    
+    return content_type
+
 def upload_to_gcs(file_path, bucket_name=GCP_BUCKET_NAME):
     if not gcs_client:
         raise ValueError("GCS client is not initialized. Skipping file upload.")
 
     try:
+        # Determine content type based on the file extension
+        content_type = guess_content_type(file_path)
+        
         logger.info(f"Uploading file to Google Cloud Storage: {file_path}")
+        if content_type:
+            logger.info(f"Using content type: {content_type}")
+        
         bucket = gcs_client.bucket(bucket_name)
         blob = bucket.blob(os.path.basename(file_path))
+        
+        # Set content type if determined
+        if content_type:
+            blob.content_type = content_type
+            
         blob.upload_from_filename(file_path)
         logger.info(f"File uploaded successfully to GCS: {blob.public_url}")
         return blob.public_url

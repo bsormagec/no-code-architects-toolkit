@@ -19,9 +19,28 @@
 import os
 import boto3
 import logging
+import mimetypes
 from urllib.parse import urlparse, quote
 
 logger = logging.getLogger(__name__)
+
+def guess_content_type(file_path):
+    """
+    Determine the content type for a file based on its extension.
+    
+    Args:
+        file_path (str): Path to the file
+    
+    Returns:
+        str: The guessed content type or 'application/octet-stream' if it cannot be determined
+    """
+    content_type, _ = mimetypes.guess_type(file_path)
+    
+    if not content_type:
+        logger.warning(f"Could not determine content type for {file_path}, defaulting to application/octet-stream")
+        content_type = 'application/octet-stream'
+    
+    return content_type
 
 def upload_to_s3(file_path, s3_url, access_key, secret_key, bucket_name, region):
     # Parse the S3 URL into bucket, region, and endpoint
@@ -36,9 +55,21 @@ def upload_to_s3(file_path, s3_url, access_key, secret_key, bucket_name, region)
     client = session.client('s3', endpoint_url=s3_url)
 
     try:
+        # Determine content type based on the file extension
+        content_type = guess_content_type(file_path)
+        logger.info(f"Determined content type for {file_path}: {content_type}")
+        
         # Upload the file to the specified S3 bucket
         with open(file_path, 'rb') as data:
-            client.upload_fileobj(data, bucket_name, os.path.basename(file_path), ExtraArgs={'ACL': 'public-read'})
+            client.upload_fileobj(
+                data, 
+                bucket_name, 
+                os.path.basename(file_path), 
+                ExtraArgs={
+                    'ACL': 'public-read',
+                    'ContentType': content_type
+                }
+            )
 
         # URL encode the filename for the URL
         encoded_filename = quote(os.path.basename(file_path))
